@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanji lookup table — sample</title>
+<style>
+	:root { color-scheme: light dark; font-family: system-ui, sans-serif; color: #202632; background: #f5f6f8; }
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 64px 20px; }
+	main { max-width: 640px; margin: auto; }
+	h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); letter-spacing: -.04em; margin: 0 0 12px; }
+	p { line-height: 1.6; color: #626b7b; }
+	.card { margin-top: 28px; padding: 28px; border: 1px solid #dfe3ea; border-radius: 16px; background: #fff; }
+	label { display: block; font-weight: 600; margin-bottom: 10px; }
+	input { width: 100%; padding: 14px 16px; border: 1px solid #bac3d0; border-radius: 8px; background: transparent; color: inherit; font: 1.1rem ui-monospace, monospace; }
+	input:focus-visible { outline: 3px solid #a9c7ff; outline-offset: 2px; border-color: #3265ad; }
+	input[aria-invalid="true"] { border-color: #bc4545; }
+	.hint, #status { font-size: .85rem; }
+	.hint { margin: 10px 0 0; }
+	.result { margin-top: 24px; border-top: 1px solid #e4e8ef; padding-top: 20px; }
+	.result-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: #626b7b; }
+	output { display: block; margin-top: 4px; font: 500 2.5rem ui-monospace, monospace; color: #285da6; }
+	#result-detail { margin: 8px 0 0; overflow-wrap: anywhere; }
+	footer { margin-top: 24px; }
+	@media (prefers-color-scheme: dark) {
+		:root { color: #e5e9f0; background: #15181e; }
+		.card { background: #1e232c; border-color: #363e4b; }
+		p, .result-label { color: #a9b2c2; }
+		input { border-color: #566173; }
+		.result { border-color: #363e4b; }
+		output { color: #9fc4ff; }
+	}
+	@media (max-width: 420px) { body { padding-top: 32px; } .card { padding: 20px; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Kanji lookup table</h1>
+<p>Enter a Unicode code point to find its index in the table. Results update as you type or paste.</p>
+<form class="card" id="lookup-form">
+	<label for="unicode-input">Unicode code point · HEX</label>
+	<input id="unicode-input" name="unicode" type="text" value="U+9F8D" placeholder="U+9F8D" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="input-hint" aria-invalid="false" disabled>
+	<p class="hint" id="input-hint">Use hexadecimal: U+9F8D, 0x9F8D, or 9F8D. Numbers without a prefix are also HEX.</p>
+	<div class="result" aria-live="polite" aria-atomic="true">
+		<div class="result-label">Table index · decimal</div>
+		<output id="index-output" for="unicode-input">—</output>
+		<p id="result-detail">Loading the lookup table…</p>
+	</div>
+</form>
+<footer>
+	<p class="hint">Pure JavaScript. Runs locally without a server or dependencies. Open the developer console for encoding and decoding details.</p>
+	<p id="status" role="status">Running…</p>
+</footer>
+</main>
+
+<!-- Original values and pre-encoded data. Use either Base64 file, not both. -->
+<script src="kanji-lookup-table.js"></script>
+<script src="kanji-lookup-table-base64.js"></script>
+<!-- The one-line alternative is kanji-lookup-table-base64.min.js. -->
+<script src="lookup-table-encoder.js"></script>
+<script src="lookup-table-decoder.js"></script>
+<script>
+'use strict';
+
+// Encode the original table; decode the bundled Base64 into Unicode -> index.
+try {
+	var encoded = encodeTable( KANJI_LOOKUP_TABLE );
+	if( encoded !== KANJI_LOOKUP_TABLE_BASE64 ) throw new Error( 'Encoded data does not match the bundled Base64.' );
+	var lookup = decodeKanjiTable( KANJI_LOOKUP_TABLE_BASE64 );
+	var supported = 0, index, unicode;
+	var restored = new Uint16Array( 8192 );
+	restored.fill( 0xFFFF );
+	for( unicode = 0; unicode < lookup.length; unicode++ ) {
+		index = lookup[ unicode ];
+		if( index >= 0 ) { restored[ index ] = unicode; supported++; }
+	}
+	for( index = 0; index < restored.length; index++ )
+		if( restored[ index ] !== KANJI_LOOKUP_TABLE[ index ] ) throw new Error( 'Round-trip mismatch at index ' + index );
+
+	console.group( 'Kanji lookup table — pure JavaScript, no dependencies' );
+	console.log( '1. Original: KANJI_LOOKUP_TABLE[index] gives a Unicode value; 0xFFFF means empty.' );
+	console.log( '2. encodeTable(values) produces the exact bundled Base64 string.' );
+	console.log( '3. decodeKanjiTable(base64) returns Unicode -> table index, with -1 for unsupported characters.' );
+	console.table( [
+		{ item: 'Table positions', size: KANJI_LOOKUP_TABLE.length, unit: 'entries' },
+		{ item: 'Supported characters', size: supported, unit: 'characters' },
+		{ item: 'Original binary', size: KANJI_LOOKUP_TABLE.length * 2, unit: 'bytes' },
+		{ item: 'Encoded commands', size: encodeTableBytes( KANJI_LOOKUP_TABLE ).length, unit: 'bytes' },
+		{ item: 'Base64', size: encoded.length, unit: 'characters' },
+		{ item: 'Decoded lookup', size: lookup.byteLength, unit: 'bytes in memory' }
+	] );
+	console.log( 'Example: 龍 (U+9F8D) -> index', lookup[ 0x9F8D ] );
+	console.log( 'Example: ASCII A (U+0041) ->', lookup[ 0x0041 ], '(unsupported)' );
+	console.log( 'Round trip: all 8192 positions restored, including empty entries.' );
+	console.groupEnd();
+	document.getElementById( 'status' ).textContent = 'Done. All 8192 positions restored. See the console for details.';
+
+	// Accept a hexadecimal Unicode code point; table indices are displayed in decimal.
+	var input = document.getElementById( 'unicode-input' );
+	var output = document.getElementById( 'index-output' );
+	var detail = document.getElementById( 'result-detail' );
+	function updateLookup() {
+		var text = input.value.trim();
+		input.setAttribute( 'aria-invalid', 'false' );
+		output.textContent = '—';
+		if( !text ) { detail.textContent = 'Enter a Unicode code point in HEX.'; return; }
+		if( !/^(?:U\+|0x)?[0-9a-f]{1,6}$/i.test( text ) ) {
+			input.setAttribute( 'aria-invalid', 'true' );
+			detail.textContent = 'Use HEX digits, for example U+9F8D, 0x9F8D, or 9F8D.';
+			return;
+		}
+		var code = parseInt( text.replace( /^(?:U\+|0x)/i, '' ), 16 );
+		if( code > 0x10FFFF ) {
+			input.setAttribute( 'aria-invalid', 'true' );
+			detail.textContent = 'Unicode code points range from U+0000 to U+10FFFF.';
+			return;
+		}
+		var label = 'U+' + code.toString( 16 ).toUpperCase().padStart( 4, '0' );
+		var found = code < lookup.length ? lookup[ code ] : -1;
+		if( found < 0 ) { detail.textContent = label + ' is not in this table (lookup result: -1).'; return; }
+		output.textContent = String( found );
+		detail.textContent = String.fromCodePoint( code ) + ' · ' + label + ' → table index ' + found;
+	}
+	input.disabled = false;
+	input.addEventListener( 'input', updateLookup );
+	document.getElementById( 'lookup-form' ).addEventListener( 'submit', function( event ) { event.preventDefault(); updateLookup(); } );
+	updateLookup();
+} catch( error ) {
+	console.error( error );
+	document.getElementById( 'status' ).textContent = 'Error: ' + error.message;
+	document.getElementById( 'result-detail' ).textContent = 'The lookup table could not be loaded. See the console for details.';
+}
+</script>
+</body>
+</html>
