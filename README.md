@@ -60,8 +60,8 @@ We can describe the table with a few commands instead of storing every value in 
   02    |  R(start, step, count)  |  Generate a series from an explicit start.
         |                         |  At least three values, including the start.
 --------+-------------------------+--------------------------------------------------
-  03    |  P(step, count)         |  Generate a series from previous + step.
-        |                         |  At least two values; reuse the previous value.
+  03    |  P(step, count)         |  Generate at least two values, starting at
+        |                         |  previous + step; do not emit previous again.
 --------+-------------------------+--------------------------------------------------
   04+   |  D(delta)               |  Add a signed difference to the previous value.
         |                         |  Small differences need fewer bytes.
@@ -159,3 +159,39 @@ ZigZag turns signed deltas and steps into unsigned integers: `0, -1, +1, -2, +2`
 Arithmetic wraps modulo 65536, so adding 2 to `FFFE` gives `0000`. Deltas and steps use the range `-32768…32767`. Empty runs preserve the previous nonempty value; series never cross empty positions. `FFFF` is reserved for empty entries.
 
 The encoder minimizes binary size, not gzip size. The stream contains no header, version, or checksum.
+
+## Usage
+
+Open [sample.html](sample.html) in a browser and open the developer console. It shows encoding, decoding, sizes, and restoration of the original table. No server, build step, or dependencies are required.
+
+- [kanji-lookup-table.js](kanji-lookup-table.js) — `var KANJI_LOOKUP_TABLE`, the original array, with 16 HEX values per line.
+- [kanji-lookup-table-base64.js](kanji-lookup-table-base64.js) — `var KANJI_LOOKUP_TABLE_BASE64`, the encoded table split into readable strings.
+- [kanji-lookup-table-base64.min.js](kanji-lookup-table-base64.min.js) — the same variable and data on one line.
+- [lookup-table-encoder.js](lookup-table-encoder.js) — plain JavaScript encoder.
+- [lookup-table-decoder.js](lookup-table-decoder.js) — plain JavaScript decoder.
+
+To use the pre-encoded table, load either Base64 file and the decoder:
+
+```html
+<script src="kanji-lookup-table-base64.min.js"></script>
+<script src="lookup-table-decoder.js"></script>
+<script>
+var lookup = decodeKanjiTable( KANJI_LOOKUP_TABLE_BASE64 );
+console.log( lookup[ 0x9F8D ] ); // 4340: 龍
+</script>
+```
+
+To encode the original table, load `kanji-lookup-table.js` and `lookup-table-encoder.js`, then call `encodeTable( KANJI_LOOKUP_TABLE )`.
+
+The decoder returns the reverse lookup: an `Int16Array(65536)` indexed by Unicode code point, containing a table index or `-1` for unsupported characters. It does not return the original 8192-entry array. The result occupies 128 KiB; keep it for reuse if needed.
+
+### Input and output
+
+`encodeTable(values)` accepts arrays and typed arrays of 16-bit integers, with `65535` reserved for empty entries. It also supports sequences of other lengths and repeated values. `encodeTableBytes(values)` returns the binary command stream before Base64 encoding.
+
+`decodeKanjiTable(text)` expects exactly 8192 positions and unique nonempty values. Short examples above illustrate the format but are not complete tables for this decoder. The scripts also define `encodeBase64(bytes)` and `decodeBase64(text)`. They use ordinary global functions, without module exports or Node.js code. Development utilities are kept separately in `tools/`.
+
+---
+
+The same approach can be useful beyond Kanji: describe deltas, series, and empty runs before applying general-purpose compression. The encoder already accepts other 16-bit sequences; other applications need a suitable decoder and measurements on their own data.
+
