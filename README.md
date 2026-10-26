@@ -189,7 +189,7 @@ The decoder returns the reverse lookup: an `Int16Array(65536)` indexed by Unicod
 
 `encodeTable(values)` accepts arrays and typed arrays of 16-bit integers, with `65535` reserved for empty entries. It also supports sequences of other lengths and repeated values. `encodeTableBytes(values)` returns the binary command stream before Base64 encoding.
 
-`decodeKanjiTable(text)` expects exactly 8192 positions and unique nonempty values. Short examples above illustrate the format but are not complete tables for this decoder. The scripts also define `encodeBase64(bytes)` and `decodeBase64(text)`. They use ordinary global functions, without module exports or Node.js code. Development utilities are kept separately in `tools/`.
+`decodeKanjiTable(text)` expects exactly 8192 positions and unique nonempty values. Short examples above illustrate the format but are not complete tables for this decoder. The scripts also define `encodeBase64(bytes)` and `decodeBase64(text)`. They use ordinary global functions, without module exports or Node.js code.
 
 ---
 
